@@ -3,19 +3,10 @@ package main
 import (
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
-
-type DateOnly struct {
-	time.Time
-}
-
-type TimeOnly struct {
-	time.Time
-}
 
 type Store struct {
 	// ensures proper synchronization for concurrent processing -- ensures only one goroutine can access the resource at a time
@@ -23,9 +14,18 @@ type Store struct {
 	receipts map[string]StandardReceipt
 }
 
+type ItemData struct {
+	ShortDescription string `json:"shortDescription"`
+	Price string `json:"price"`
+}
+
 type StandardReceipt struct {
 	ID string `json:"id"`
-	Retailer     string    `json:"retailer"`
+	Retailer string `json:"retailer"`
+	PurchaseDate string `json:"purchaseDate"`
+	PurchaseTime string `json:"purchaseTime"`
+	Items []ItemData `json:"items"`
+	Total string `json:"total"`
 }
 
 func NewStore() *Store {
