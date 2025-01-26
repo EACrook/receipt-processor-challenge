@@ -3,9 +3,12 @@ package main
 import (
 	"net/http"
 	"sync"
+	"regexp"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 )
 
 type Store struct {
@@ -15,17 +18,17 @@ type Store struct {
 }
 
 type ItemData struct {
-	ShortDescription string `json:"shortDescription"`
-	Price string `json:"price"`
+	ShortDescription string `json:"shortDescription" binding:"required"`
+	Price string `json:"price" binding:"required,priceFormat"`
 }
 
 type StandardReceipt struct {
 	ID string `json:"id"`
-	Retailer string `json:"retailer"`
-	PurchaseDate string `json:"purchaseDate"`
-	PurchaseTime string `json:"purchaseTime"`
-	Items []ItemData `json:"items"`
-	Total string `json:"total"`
+	Retailer string `json:"retailer" binding:"required"`
+	PurchaseDate string `json:"purchaseDate" binding:"required"`
+	PurchaseTime string `json:"purchaseTime" binding:"required"`
+	Items []ItemData `json:"items" binding:"required,dive"`
+	Total string `json:"total" binding:"required,priceFormat"`
 }
 
 func NewStore() *Store {
@@ -50,9 +53,22 @@ func (s *Store) GetReceipt(id string) (StandardReceipt, bool) {
 	return receipt, exists
 }
 
+// Validates that our price and total fields match the correct format
+var validatePrice validator.Func = func (fl validator.FieldLevel) bool {
+	pattern := "^\\d+\\.\\d{2}$"
+
+	matched, _ := regexp.MatchString(pattern, fl.Field().String())
+	return matched
+}
+
 func main() {
 	store := NewStore()
 	router := gin.Default()
+
+	// validator for price and total
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		v.RegisterValidation("priceFormat", validatePrice)
+	}
 
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Welcome to the API!"})
@@ -82,6 +98,17 @@ func main() {
 		}
 		c.JSON(http.StatusOK, gin.H{"points": receipt})
 	})
+
+	// TODO: write functions for points maths
+	// router.GET("receipts/:id/points", func(c *gin.Context) {
+	// 	id := c.Param("id")
+	// 	receipt, exists := store.GetReceipt(id)
+	// 	if !exists {
+	// 		c.JSON(http.StatusNotFound, gin.H{"error": "receipt not found"})
+	// 		return
+	// 	}
+	// 	c.JSON(http.StatusOK, gin.H{"points": receipt})
+	// })
 
 	router.Run(":8080")
 }
