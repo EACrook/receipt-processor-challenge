@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sync"
 	"regexp"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -24,9 +25,9 @@ type ItemData struct {
 
 type StandardReceipt struct {
 	ID string `json:"id"`
-	Retailer string `json:"retailer" binding:"required"`
-	PurchaseDate string `json:"purchaseDate" binding:"required"`
-	PurchaseTime string `json:"purchaseTime" binding:"required"`
+	Retailer string `json:"retailer" binding:"required,retailerFormat"`
+	PurchaseDate string `json:"purchaseDate" binding:"required,dateFormat"`
+	PurchaseTime string `json:"purchaseTime" binding:"required,timeFormat"`
 	Items []ItemData `json:"items" binding:"required,dive"`
 	Total string `json:"total" binding:"required,priceFormat"`
 }
@@ -36,7 +37,6 @@ func NewStore() *Store {
 		receipts: make(map[string]StandardReceipt),
 	}
 }
-
 
 func (s *Store) AddReceipt(receipt StandardReceipt) {
 	// prevents other goroutines from accessing the resource
@@ -61,6 +61,35 @@ var validatePrice validator.Func = func (fl validator.FieldLevel) bool {
 	return matched
 }
 
+var validateRetailer validator.Func = func (fl validator.FieldLevel) bool {
+	pattern := "^[\\w\\s\\-&]+$"
+
+	matched, _ := regexp.MatchString(pattern, fl.Field().String())
+	return matched
+}
+
+var validateDate validator.Func = func (fl validator.FieldLevel) bool {
+	const layout = "2006-01-02" // Date format: YYYY-mm-dd
+
+	// TODO: I don't like this -- try to see if I can match similar formats to the rest
+	_, err := time.Parse(layout, fl.Field().String())
+	return err == nil
+}
+
+var validateTime validator.Func = func (fl validator.FieldLevel) bool {
+	const layout = "15:04" // Time format: HH:mm
+
+	_, err := time.Parse(layout, fl.Field().String())
+	return err == nil
+}
+
+var validateDescription validator.Func = func (fl validator.FieldLevel) bool {
+	pattern := "^[\\w\\s\\-]+$"
+
+	matched, _ := regexp.MatchString(pattern, fl.Field().String())
+	return matched
+}
+
 func main() {
 	store := NewStore()
 	router := gin.Default()
@@ -68,6 +97,10 @@ func main() {
 	// validator for price and total
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		v.RegisterValidation("priceFormat", validatePrice)
+		v.RegisterValidation("retailerFormat", validateRetailer)
+		v.RegisterValidation("dateFormat", validateDate)
+		v.RegisterValidation("timeFormat", validateTime)
+		v.RegisterValidation("descriptionFormat", validateDescription)
 	}
 
 	router.GET("/", func(c *gin.Context) {
