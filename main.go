@@ -118,8 +118,10 @@ func pointCalculationAll(receipt StandardReceipt) int {
 	retailerPoints := pointCalculationRetailer(receipt.Retailer)
 	receiptTotalPoints := pointsCalculationReceiptTotal(receipt.Total)
 	lineItemsPoints := pointsCalculationLineItems(receipt.Items)
+	datePoints := pointCalculationDate(receipt.PurchaseDate)
+	timePoints := pointCalculationTime(receipt.PurchaseTime)
 
-	return retailerPoints + receiptTotalPoints + lineItemsPoints
+	return retailerPoints + receiptTotalPoints + lineItemsPoints + datePoints + timePoints
 }
 
 func pointCalculationRetailer(retailer string) int {
@@ -190,6 +192,40 @@ func itemDescriptionPoints(items []ItemData) int {
 	return points
 }
 
+func pointCalculationDate(dateStr string) int {
+	points := 0
+	layout := "2006-01-02"
+	
+	date, err := time.Parse(layout, dateStr) 
+	if err != nil {
+		panic(err)
+	}
+
+	day := date.Day()
+
+	if !isMultipleInt(day, 2) {
+		return points + 6
+	}
+	return points	
+}
+
+func pointCalculationTime(timeStr string) int {
+	points := 0
+	layout := "15:04"
+
+	purchaseTime, err := time.Parse(layout, timeStr)
+	if err != nil {
+		panic(err)
+	}
+	startTime, _ := time.Parse(layout, "14:00")
+	endTime, _ := time.Parse(layout, "16:00") 
+
+	if purchaseTime.After(startTime) && purchaseTime.Before(endTime) {
+		return points + 10
+	}
+	return points
+}
+
 func main() {
 	store := NewStore()
 	router := gin.Default()
@@ -222,7 +258,7 @@ func main() {
 
 		store.AddReceipt(newReceipt)
 		store.AddPoints(points)
-		c.JSON(http.StatusCreated, newReceipt)
+		c.JSON(http.StatusCreated, gin.H{"id": newReceipt.ID})
 	})
 
 	router.GET("/receipts/:id", func(c *gin.Context) {
