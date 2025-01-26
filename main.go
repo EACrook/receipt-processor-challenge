@@ -2,25 +2,24 @@ package main
 
 import (
 	"net/http"
-	"sync"
 	"regexp"
+	"sync"
 	"time"
+	"unicode"
+	"strconv"
+	"math"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 )
 
 type Store struct {
 	// ensures proper synchronization for concurrent processing -- ensures only one goroutine can access the resource at a time
 	mu sync.Mutex
 	receipts map[string]StandardReceipt
-}
-
-type ItemData struct {
-	ShortDescription string `json:"shortDescription" binding:"required"`
-	Price string `json:"price" binding:"required,priceFormat"`
+	points map[string]Points
 }
 
 type StandardReceipt struct {
@@ -32,9 +31,20 @@ type StandardReceipt struct {
 	Total string `json:"total" binding:"required,priceFormat"`
 }
 
+type ItemData struct {
+	ShortDescription string `json:"shortDescription" binding:"required"`
+	Price string `json:"price" binding:"required,priceFormat"`
+}
+
+type Points struct {
+	ID string `json:"id"`
+	Points int `json:"points"`
+}
+
 func NewStore() *Store {
 	return &Store{
 		receipts: make(map[string]StandardReceipt),
+		points: make(map[string]Points),
 	}
 }
 
@@ -51,6 +61,19 @@ func (s *Store) GetReceipt(id string) (StandardReceipt, bool) {
 	defer s.mu.Unlock()
 	receipt, exists := s.receipts[id]
 	return receipt, exists
+}
+
+func (s *Store) AddPoints(points Points) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.points[points.ID] = points
+}
+
+func (s *Store) GetPoints(id string) (Points, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	points, exists := s.points[id]
+	return points, exists
 }
 
 // Validates that our price and total fields match the correct format
@@ -90,6 +113,48 @@ var validateDescription validator.Func = func (fl validator.FieldLevel) bool {
 	return matched
 }
 
+func pointCalculationAll(receipt StandardReceipt) int {
+	retailerPoints := pointCalculationRetailer(receipt.Retailer)
+	receiptTotalPoints := pointsCalculationReceiptTotal(receipt.Total)
+
+	return retailerPoints + receiptTotalPoints
+}
+
+func pointCalculationRetailer(retailer string) int {
+	points := 0
+	for _, char := range retailer {
+		if unicode.IsLetter(char) || unicode.IsDigit(char) {
+			points++
+		}
+	}
+	return points
+}
+
+func pointsCalculationReceiptTotal(total string) int {
+	points := 0
+	i, err := strconv.ParseFloat(total, 64)
+	if err != nil {
+		panic(err)
+	}
+
+	if isRoundNumber(i) {
+		points += 50 
+	}
+	if isMultiple(i, 0.25) {
+		points += 25
+	}
+	return points
+}
+
+func isRoundNumber(total float64) bool {
+	return total == math.Floor(total)
+}
+
+func isMultiple(dividend float64, divisor float64) bool {
+	remainder := math.Mod(dividend, divisor)
+	return math.Abs(remainder) < 1e-9
+}
+
 func main() {
 	store := NewStore()
 	router := gin.Default()
@@ -109,16 +174,19 @@ func main() {
 
 	router.POST("/receipts/process", func(c *gin.Context) {
 		var newReceipt StandardReceipt
+		var points Points
 
 		if err := c.ShouldBindJSON(&newReceipt); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-
-		newReceipt.ID = uuid.New().String()
+		newId := uuid.New().String()
+		newReceipt.ID = newId
+		points.ID = newId
+		points.Points = pointCalculationAll(newReceipt) 
 
 		store.AddReceipt(newReceipt)
-
+		store.AddPoints(points)
 		c.JSON(http.StatusCreated, newReceipt)
 	})
 
@@ -129,19 +197,19 @@ func main() {
 			c.JSON(http.StatusNotFound, gin.H{"error": "receipt not found"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"points": receipt})
+		c.JSON(http.StatusOK, gin.H{"receipt": receipt})
 	})
 
 	// TODO: write functions for points maths
-	// router.GET("receipts/:id/points", func(c *gin.Context) {
-	// 	id := c.Param("id")
-	// 	receipt, exists := store.GetReceipt(id)
-	// 	if !exists {
-	// 		c.JSON(http.StatusNotFound, gin.H{"error": "receipt not found"})
-	// 		return
-	// 	}
-	// 	c.JSON(http.StatusOK, gin.H{"points": receipt})
-	// })
+	router.GET("receipts/:id/points", func(c *gin.Context) {
+		id := c.Param("id")
+		points, exists := store.GetPoints(id)
+		if !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": "points not found"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"points": points})
+	})
 
 	router.Run(":8080")
 }
