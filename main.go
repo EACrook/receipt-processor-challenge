@@ -8,6 +8,7 @@ import (
 	"unicode"
 	"strconv"
 	"math"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -116,8 +117,9 @@ var validateDescription validator.Func = func (fl validator.FieldLevel) bool {
 func pointCalculationAll(receipt StandardReceipt) int {
 	retailerPoints := pointCalculationRetailer(receipt.Retailer)
 	receiptTotalPoints := pointsCalculationReceiptTotal(receipt.Total)
+	lineItemsPoints := pointsCalculationLineItems(receipt.Items)
 
-	return retailerPoints + receiptTotalPoints
+	return retailerPoints + receiptTotalPoints + lineItemsPoints
 }
 
 func pointCalculationRetailer(retailer string) int {
@@ -140,9 +142,16 @@ func pointsCalculationReceiptTotal(total string) int {
 	if isRoundNumber(i) {
 		points += 50 
 	}
-	if isMultiple(i, 0.25) {
+	if isMultipleFloat(i, 0.25) {
 		points += 25
 	}
+	return points
+}
+
+func pointsCalculationLineItems(items []ItemData) int {
+	points := 0
+	points += groupedByTwoPoints(len(items))
+	points += itemDescriptionPoints(items)
 	return points
 }
 
@@ -150,9 +159,35 @@ func isRoundNumber(total float64) bool {
 	return total == math.Floor(total)
 }
 
-func isMultiple(dividend float64, divisor float64) bool {
+func isMultipleFloat(dividend float64, divisor float64) bool {
 	remainder := math.Mod(dividend, divisor)
 	return math.Abs(remainder) < 1e-9
+}
+
+func isMultipleInt(dividend int, divisor int) bool {
+	return dividend%divisor == 0
+}
+
+func groupedByTwoPoints(itemsLength int) int {
+	if !isMultipleInt(itemsLength, 2) {
+		itemsLength = itemsLength - 1
+	}
+	return itemsLength/2 * 5
+}
+
+func itemDescriptionPoints(items []ItemData) int {
+	points := 0
+	for _, item := range items {
+		trimmed := strings.TrimSpace(item.ShortDescription)
+		if isMultipleInt(len(trimmed), 3) {
+			price, err := strconv.ParseFloat(item.Price, 64)
+			if err != nil {
+				panic(err)
+			}
+			points += int(math.Ceil(price * 0.2))
+		}
+	}
+	return points
 }
 
 func main() {
