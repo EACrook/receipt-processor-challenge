@@ -248,7 +248,7 @@ func main() {
 		var points Points
 
 		if err := c.ShouldBindJSON(&newReceipt); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "The receipt is invalid"})
 			return
 		}
 		newId := uuid.New().String()
@@ -258,7 +258,7 @@ func main() {
 
 		store.AddReceipt(newReceipt)
 		store.AddPoints(points)
-		c.JSON(http.StatusCreated, gin.H{"id": newReceipt.ID})
+		c.JSON(http.StatusOK, gin.H{"id": newReceipt.ID})
 	})
 
 	router.GET("/receipts/:id", func(c *gin.Context) {
@@ -276,10 +276,10 @@ func main() {
 		id := c.Param("id")
 		points, exists := store.GetPoints(id)
 		if !exists {
-			c.JSON(http.StatusNotFound, gin.H{"error": "points not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "No receipt found for that ID"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"points": points})
+		c.JSON(http.StatusOK, gin.H{"points": points.Points})
 	})
 
 	router.Run(":8080")
