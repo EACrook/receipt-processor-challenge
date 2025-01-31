@@ -287,6 +287,20 @@ var testReceiptData4 = models.StandardReceipt{
 	Total: "1.25",
 }
 
+var testEmptyReceipt = models.StandardReceipt{
+	ID: "852",
+	Retailer: "",
+	PurchaseDate: "",
+	PurchaseTime: "",
+	Items: []models.ItemData{
+		{
+			ShortDescription: "", 
+			Price: "",
+		},
+	},
+	Total: "",
+}
+
 func TestPointCalculationAll(t *testing.T) {
 	tests := []struct {
 		name string
@@ -297,6 +311,7 @@ func TestPointCalculationAll(t *testing.T) {
 		{"Test receipt 2", testReceiptData2, 109},
 		{"Test receipt 3", testReceiptData3, 15},
 		{"Test receipt 4", testReceiptData4, 31},
+		{"Test empty receipt", testEmptyReceipt, 0},
 	}
 
 	for _, test := range tests {
