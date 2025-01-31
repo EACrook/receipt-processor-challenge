@@ -34,7 +34,7 @@ func pointsCalculationReceiptTotal(total string) int {
 	points := 0
 	i, err := strconv.ParseFloat(total, 64)
 	if err != nil {
-		panic(err)
+		return 0 // if there is an error, return 0
 	}
 
 	if isRoundNumber(i) {
@@ -59,7 +59,7 @@ func pointCalculationDate(dateStr string) int {
 	
 	date, err := time.Parse(layout, dateStr) 
 	if err != nil {
-		panic(err)
+		return 0 // if there is an error, return 0
 	}
 
 	day := date.Day()
@@ -76,7 +76,7 @@ func pointCalculationTime(timeStr string) int {
 
 	purchaseTime, err := time.Parse(layout, timeStr)
 	if err != nil {
-		panic(err)
+		return 0 // if there is an error, return 0
 	}
 	startTime, _ := time.Parse(layout, "14:00")
 	endTime, _ := time.Parse(layout, "16:00") 
@@ -101,7 +101,7 @@ func itemDescriptionPoints(items []models.ItemData) int {
 		if isMultipleInt(len(trimmed), 3) {
 			price, err := strconv.ParseFloat(item.Price, 64)
 			if err != nil {
-				panic(err)
+				return 0 // if there is an error, return 0
 			}
 			points += int(math.Ceil(price * 0.2))
 		}
